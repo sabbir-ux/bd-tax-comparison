@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bangladesh Income Tax Comparison</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Scale down the entire page content to 80% */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      padding: 32px;
+      max-width: 720px; /* 80% of 900 */
+      margin: auto;
+      font-size: 0.85rem; /* smaller base font */
+      /* optional for better scaling:
+      transform: scale(0.8);
+      transform-origin: top center;
+      */
+    }
+    h2 {
+      text-align: center;
+      font-size: 1.5rem;
+    }
+    label, select, input {
+      display: block;
+      width: 100%;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+    }
+    input[type="number"], select {
+      padding: 8px;
+      font-size: 0.85rem;
+    }
+    button {
+      padding: 10px;
+      font-size: 0.9rem;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .output-container {
+      display: flex;
+      gap: 15px;
+      justify-content: space-between;
+      margin-top: 10px;
+      flex-wrap: nowrap; /* prevent stacking */
+      align-items: flex-start;
+    }
+    #result {
+      flex: 1 1 48%;
+      min-width: 280px;
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      box-sizing: border-box;
+      max-height: 450px;
+    }
+    .chart-container {
+      flex: 1 1 48%;
+      min-width: 280px;
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      box-sizing: border-box;
+      max-height: 450px;
+    }
+    canvas {
+      width: 100% !important;
+      height: 280px !important;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0;
+      font-size: 0.85rem;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 7px 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #eee;
+    }
+    footer {
+      text-align: center;
+      margin-top: 25px;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <h2>Bangladesh Income Tax Comparison (2024–25 vs 2025–26)</h2>
+
+  <label for="monthly">Monthly Gross Salary (BDT):</label>
+  <input type="number" id="monthly" placeholder="e.g. 60000" />
+
+  <label for="category">Select Category:</label>
+  <select id="category">
+    <option value="male">Male</option>
+    <option value="female">Female / Age 65+</option>
+    <option value="third_gender">Third Gender / Person with Disability</option>
+    <option value="freedom_fighter">Gazetted Freedom Fighter / July Uprising Fighter</option>
+  </select>
+
+  <label for="employment">Employment Type:</label>
+  <select id="employment">
+    <option value="regular">Regular</option>
+    <option value="service">Service</option>
+    <option value="contract">Contract</option>
+    <option value="project">Project</option>
+  </select>
+
+  <label for="grade">Select Grade:</label>
+  <select id="grade">
+    <option value="1">Grade 1</option>
+    <option value="2">Grade 2</option>
+    <option value="3">Grade 3</option>
+    <option value="4">Grade 4</option>
+    <option value="5">Grade 5</option>
+    <option value="6">Grade 6</option>
+    <option value="7">Grade 7</option>
+    <option value="8">Grade 8</option>
+    <option value="9">Grade 9</option>
+    <option value="10">Grade 10</option>
+    <option value="11">Grade 11</option>
+    <option value="12">Grade 12</option>
+    <option value="13">Grade 13</option>
+  </select>
+
+  <label for="location">Work Location:</label>
+  <select id="location">
+    <option value="dhaka_ctg">Dhaka/Chattogram City Corporation area</option>
+    <option value="other_city">Other City Corporation area</option>
+    <option value="outside_city">Other than City Corporation Area</option>
+  </select>
+
+  <button onclick="calculateTax()">Calculate & Compare</button>
+
+  <div class="output-container">
+    <div id="result"></div>
+    <div class="chart-container">
+      <canvas id="taxChart"></canvas>
+    </div>
+  </div>
+
+  <footer>
+    Prepared by <a href="https://www.linkedin.com/in/sabbir-hossain-sust/" target="_blank" rel="noopener">Sabbir Hossain</a>
+  </footer>
+
+  <script>
+    let taxChart = null;
+
+    const driverAllowance = {
+      9: 50000, 10: 50000, 11: 60000, 12: 60000, 13: 60000
+    };
+
+    const basicPercent = {
+      regular: {1: 55, 2: 55, 3: 55, 4: 55, 5: 50, 6: 50, 7: 50, 8: 50, 9: 50, 10: 50, 11: 45, 12: 45, 13: 45},
+      service: 55,
+      contract: 50,
+      project: 50
+    };
+
+    const proposedSlabs = {
+      male: [375000, 300000, 400000, 500000, 2000000],
+      female: [425000, 300000, 400000, 500000, 2000000],
+      third_gender: [500000, 300000, 400000, 500000, 2000000],
+      freedom_fighter: [525000, 300000, 400000, 500000, 2000000]
+    };
+
+    const currentSlabs = {
+      male: [350000, 100000, 400000, 500000, 500000, 2000000],
+      female: [400000, 100000, 400000, 500000, 500000, 2000000],
+      third_gender: [475000, 100000, 400000, 500000, 500000, 2000000],
+      freedom_fighter: [500000, 100000, 400000, 500000, 500000, 2000000]
+    };
+
+    const proposedRates = [0, 0.10, 0.15, 0.20, 0.25, 0.30];
+    const currentRates = [0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+
+    const currentMinTax = {
+      dhaka_ctg: 5000,
+      other_city: 4000,
+      outside_city: 3000
+    };
+
+    function formatBDT(num) {
+      return Math.round(num).toLocaleString('en-BD');
+    }
+
+    function calculateSlabTax(taxable, slabs, rates) {
+      let tax = 0, remaining = taxable;
+      for (let i = 0; i < slabs.length; i++) {
+        if (remaining > slabs[i]) {
+          tax += slabs[i] * rates[i];
+          remaining -= slabs[i];
+        } else {
+          tax += remaining * rates[i];
+          return tax;
+        }
+      }
+      if (remaining > 0) tax += remaining * rates[rates.length - 1];
+      return tax;
+    }
+
+    function calculateTax() {
+      const monthly = parseFloat(document.getElementById("monthly").value);
+      const category = document.getElementById("category").value;
+      const employment = document.getElementById("employment").value;
+      const grade = parseInt(document.getElementById("grade").value);
+      const location = document.getElementById("location").value;
+
+      if (isNaN(monthly) || monthly <= 0) {
+        document.getElementById("result").innerHTML = "❗ Please enter a valid monthly salary.";
+        if (taxChart) taxChart.destroy();
+        return;
+      }
+
+      const basicRate = employment === 'regular' ? basicPercent.regular[grade] :
+                        basicPercent[employment];
+
+      const basic = monthly * (basicRate / 100);
+      const annual = monthly * 12;
+      const bonus = basic * 2;
+      const pf = (employment === 'contract' || employment === 'project') ? 0 : basic * 0.10 * 12;
+      const allowance = driverAllowance[grade] || 0;
+      const totalIncome = annual + bonus + pf + allowance;
+      const exemption = Math.min(totalIncome / 3, 450000);
+      const taxable = Math.max(totalIncome - exemption, 0);
+      const investment = Math.min(taxable * 0.03, 1000000);
+      const rebate = investment;
+
+      const currentTax = calculateSlabTax(taxable, currentSlabs[category], currentRates);
+      const currentFinal = currentTax > 0 ? Math.max(currentTax - rebate, currentMinTax[location]) : 0;
+      const currentMonthly = currentFinal / 12;
+
+      const proposedTax = calculateSlabTax(taxable, proposedSlabs[category], proposedRates);
+      const proposedFinal = proposedTax > 0 ? Math.max(proposedTax - rebate, 5000) : 0;
+      const proposedMonthly = proposedFinal / 12;
+
+      const difference = proposedFinal - currentFinal;
+      const monthlyDiff = proposedMonthly - currentMonthly;
+      const percentDiff = currentFinal > 0 ? ((difference / currentFinal) * 100).toFixed(2) : "N/A";
+
+      document.getElementById("result").innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>2024–25</th>
+              <th>2025–26</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Annual Income</td>
+              <td colspan="2">BDT ${formatBDT(totalIncome)}</td>
+            </tr>
+            <tr>
+              <td>Taxable Income</td>
+              <td colspan="2">BDT ${formatBDT(taxable)}</td>
+            </tr>
+            <tr>
+              <td>Tax Rebate</td>
+              <td colspan="2">BDT ${formatBDT(rebate)}</td>
+            </tr>
+            <tr>
+              <td>Final Annual Tax</td>
+              <td>BDT ${formatBDT(currentFinal)}</td>
+              <td>BDT ${formatBDT(proposedFinal)}</td>
+            </tr>
+            <tr>
+              <td>Monthly Tax</td>
+              <td>BDT ${formatBDT(currentMonthly)}</td>
+              <td>BDT ${formatBDT(proposedMonthly)}</td>
+            </tr>
+            <tr>
+              <td>Tax Difference</td>
+              <td colspan="2">BDT ${formatBDT(difference)} (${percentDiff}%) | Monthly: BDT ${formatBDT(monthlyDiff)}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+
+      const ctx = document.getElementById("taxChart").getContext("2d");
+      if (taxChart) taxChart.destroy();
+
+      taxChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['2024–25', '2025–26'],
+          datasets: [{
+            label: 'Annual Tax',
+            data: [currentFinal, proposedFinal],
+            backgroundColor: ['#007BFF', '#28a745']
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false }},
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: value => '৳' + value.toLocaleString('en-BD')
+              }
+            }
+          }
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>
