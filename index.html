@@ -239,7 +239,7 @@
       const pf = (employment === 'contract' || employment === 'project') ? 0 : basic * 0.10 * 12;
       const allowance = driverAllowance[grade] || 0;
       const totalIncome = annual + bonus + pf + allowance;
-      const exemption = Math.min(totalIncome / 3, 450000);
+      const exemption = Math.min(totalIncome / 3, 500000);
       const taxable = Math.max(totalIncome - exemption, 0);
       const investment = Math.min(taxable * 0.03, 1000000);
       const rebate = investment;
